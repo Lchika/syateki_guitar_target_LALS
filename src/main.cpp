@@ -33,6 +33,7 @@ static ht16k33LED::Color gun_id2color(int gun_id);
 static void update_servos();
 //static void update_rotation_servo(M5Servo &servo, RotationServoPhase &phase);
 static long update_normal_servo(M5Servo &servo, long millis_angle_change);
+static void send_to_xiao(char phase, int pattern);
 
 // まとユニット番号、この番号によってIPアドレスが決まるため、他とかぶってはいけない
 static constexpr int UNIT_ID = 2;
@@ -77,7 +78,7 @@ void setup()
   M5.Power.begin();
 
   // まと関係の初期化、M5.begin() or Serial.begin() の後に行う
-  targets.begin(UNIT_ID, TARGET_NUM, on_hit);
+  targets.begin(UNIT_ID, TARGET_NUM);
 
   // 赤外線受光モジュールとの疎通確認が可能
   std::vector<int> error_target_ids = targets.get_error_targets();
@@ -96,6 +97,8 @@ void setup()
 
   init_lcd();
   show_motor_value(motor_power);
+
+  send_to_xiao('r', 9);
 }
 
 void loop()
@@ -159,10 +162,14 @@ static void on_hit(int target_id, int gun_id)
 {
   DebugPrint("on_hit() target_id=%d", target_id);
   ht16k33LED::Color color = gun_id2color(gun_id);
+  send_to_xiao('h', -1);
   // LED点滅
   leds[target_id].blink(color, 3, 300);
   // 弾が一度当たったまとのLEDは点灯しっぱなしにしておく
   leds[target_id].write_color(color);
+  if(targets.alive_target_num == 0){
+    send_to_xiao('e', 0);
+  }
 }
 
 // 一通り動かしてみて動作確認する
@@ -292,4 +299,16 @@ static long update_normal_servo(M5Servo &servo, long millis_angle_change)
     DebugPrint("normal servo angle: %d", angle)
   }
   return next_millis_angle_change;
+}
+
+static void send_to_xiao(char phase, int pattern)
+{
+  Wire.beginTransmission(0x7D);
+  Wire.write(phase);
+  Wire.endTransmission();
+  if(pattern > 0 && pattern < 10){
+    Wire.beginTransmission(0x7D);
+    Wire.write(pattern + '0');
+    Wire.endTransmission();
+  }
 }

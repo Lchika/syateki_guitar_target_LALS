@@ -3,21 +3,22 @@
 #include "Targets.hpp"
 #include "debug.h"
 
+int Targets::alive_target_num = 0;
 std::vector<Target> Targets::_targets;
-std::function<void(void)> Targets::_on_init;
-std::function<void(int, int)> Targets::_on_hit;
+void (*Targets::_on_init)(void);
+void (*Targets::_on_hit)(int, int);
 
-Targets::Targets(std::function<void(void)> on_init,
-                 std::function<void(int, bool)> on_receive_ir,
-                 std::function<void(int, bool)> on_not_receive_ir,
-                 std::function<void(int, int)> on_hit)
+Targets::Targets(void (*on_init)(void),
+                 void (*on_receive_ir)(int, bool),
+                 void (*on_not_receive_ir)(int, bool),
+                 void (*on_hit)(int, int))
     : _on_receive_ir(on_receive_ir), _on_not_receive_ir(on_not_receive_ir)
 {
   Targets::_on_init = on_init;
   Targets::_on_hit = on_hit;
 }
 
-bool Targets::begin(int unit_id, int targets_num, std::function<void(int,int)> on_hit, bool begin_wifi)
+bool Targets::begin(int unit_id, int targets_num, bool begin_wifi)
 {
   for (int i = 0; i < targets_num; i++)
   {
@@ -39,9 +40,7 @@ bool Targets::begin(int unit_id, int targets_num, std::function<void(int,int)> o
   _server->on_init(Targets::_handle_init);
   _server->begin();
 
-  Targets::_on_hit = on_hit;
-  DebugPrint("test2");
-  Targets::_on_hit(0, 1);
+  Targets::alive_target_num = targets_num;
   return true;
 }
 
@@ -94,6 +93,7 @@ void Targets::_handle_shoot(WebServer *server)
     {
       _response_to_center(*server, shoot_gun_num_i);
       target.is_alive = false;
+      Targets::alive_target_num--;
       Targets::_on_hit(target.get_id(), shoot_gun_num_i);
       return;
     }
@@ -109,6 +109,7 @@ void Targets::_handle_init(WebServer *server)
   {
     target.is_alive = true;
   }
+  Targets::alive_target_num = Targets::_targets.size();
   server->send(200, "text/plain", "initialized");
 }
 
@@ -132,8 +133,8 @@ bool Targets::_connect_ap(int id)
   WiFi.mode(WIFI_AP_STA);
   WiFi.config(IPAddress(192, 168, 100, 200 + id),
               IPAddress(192, 168, 100, 1), IPAddress(255, 255, 255, 0));
-  const char *ssid = "ROBOCON-AP1";
-  const char *password = "20190216-rc";
+  const char *ssid = "your-ssid";
+  const char *password = "your-pass";
   WiFi.begin(ssid, password);
   DebugPrint("connecting to wifi ssid = %s, password = %s\n", ssid, password);
   unsigned int try_connect_count = 0;
